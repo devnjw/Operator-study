@@ -1,0 +1,6 @@
+apiVersion: side.sidecar.com/v1alpha1
+kind: Sidecar
+metadata:
+  name: sidecar-sample
+spec:
+  # TODO(user): Add fields here
