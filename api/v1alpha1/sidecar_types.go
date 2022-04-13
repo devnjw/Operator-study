@@ -28,13 +28,14 @@ type SidecarSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Port int32 `json:"port"`
+	Size int32 `json:"size"`
 }
 
 // SidecarStatus defines the observed state of Sidecar
 type SidecarStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	Nodes []string `json:"nodes"`
 }
 
 //+kubebuilder:object:root=true
