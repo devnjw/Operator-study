@@ -35,14 +35,24 @@ spec:
           spec:
             description: SidecarSpec defines the desired state of Sidecar
             properties:
-              port:
+              size:
                 format: int32
                 type: integer
             required:
-            - port
+            - size
             type: object
           status:
             description: SidecarStatus defines the observed state of Sidecar
+            properties:
+              nodes:
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                  of cluster Important: Run "make" to regenerate code after modifying
+                  this file'
+                items:
+                  type: string
+                type: array
+            required:
+            - nodes
             type: object
         type: object
     served: true
