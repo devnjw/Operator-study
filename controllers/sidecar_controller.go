@@ -18,11 +18,19 @@ package controllers
 
 import (
 	"context"
+	"time"
+
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/types"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/log"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	sidev1alpha1 "github.com/devnjw/sidecar/api/v1alpha1"
 )
@@ -47,16 +55,94 @@ type SidecarReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.11.0/pkg/reconcile
 func (r *SidecarReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	log := ctrllog.FromContext(ctx)
 
-	// TODO(user): your logic here
+	// Fetch the Sidecar instance
+	sidecar := &sidev1alpha1.Sidecar{}
+	err := r.Get(ctx, req.NamespacedName, sidecar)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// Request object not found, could have been deleted after reconcile request.
+			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
+			// Return and don't requeue
+			log.Info("Memcached resource not found. Ignoring since object must be deleted")
+			return ctrl.Result{}, nil
+		}
+		// Error reading the object - requeue the request.
+		log.Error(err, "Failed to get Memcached")
+		return ctrl.Result{}, err
+	}
 
-	return ctrl.Result{}, nil
+	// Check if the deployment already exists, if not create a new one
+	found := &appsv1.Deployment{}
+	err = r.Get(ctx, types.NamespacedName{Name: sidecar.Name, Namespace: sidecar.Namespace}, found)
+	if err != nil && errors.IsNotFound(err) {
+		// Define a new deployment
+		dep := r.deploymentForSidecar(sidecar)
+		log.Info("Creating a new Deployment", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+		err = r.Create(ctx, dep)
+		if err != nil {
+			log.Error(err, "Failed to create new Deployment", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
+			return ctrl.Result{}, err
+		}
+		// Deployment created successfully - return and requeue
+		return ctrl.Result{Requeue: true}, nil
+	} else if err != nil {
+		log.Error(err, "Failed to get Deployment")
+		return ctrl.Result{}, err
+	}
+
+	// Ask to requeue after 1 minute in order to give enough time for the
+	// pods be created on the cluster side and the operand be able
+	// to do the next update step accurately.
+	return ctrl.Result{RequeueAfter: time.Minute}, nil
+}
+
+func (r *SidecarReconciler) deploymentForSidecar(s *sidev1alpha1.Sidecar) *appsv1.Deployment {
+	ls := labelsForSidecar(s.Name)
+	replicas := s.Spec.Size
+
+	dep := &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      s.Name,
+			Namespace: s.Namespace,
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: ls,
+			},
+			Template: corev1.PodTemplateSpec{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: ls,
+				},
+				Spec: corev1.PodSpec{
+					Containers: []corev1.Container{{
+						Name:  "sidecar",
+						Image: "alicek106/rr-test:echo-hostname",
+						Ports: []corev1.ContainerPort{{
+							ContainerPort: 11211,
+						}},
+					}},
+				},
+			},
+		},
+	}
+	// Set Sidecar instance as the owner and controller
+	ctrl.SetControllerReference(s, dep, r.Scheme)
+	return dep
+}
+
+// labelsForMemcached returns the labels for selecting the resources
+// belonging to the given memcached CR name.
+func labelsForSidecar(name string) map[string]string {
+	return map[string]string{"app": "memcached", "memcached_cr": name}
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *SidecarReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&sidev1alpha1.Sidecar{}).
+		Owns(&appsv1.Deployment{}).
 		Complete(r)
 }
