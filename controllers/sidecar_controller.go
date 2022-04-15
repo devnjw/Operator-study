@@ -27,6 +27,8 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/types"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
+
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -44,8 +46,11 @@ type SidecarReconciler struct {
 //+kubebuilder:rbac:groups=side.sidecar.com,resources=sidecars,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=side.sidecar.com,resources=sidecars/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=side.sidecar.com,resources=sidecars/finalizers,verbs=update
+
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;
+
+//+kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -75,6 +80,22 @@ func (r *SidecarReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		return ctrl.Result{}, err
 	}
 
+	foundService := &corev1.Service{}
+	err = r.Get(ctx, types.NamespacedName{Name: getServiceName(sidecar.Name), Namespace: sidecar.Namespace}, foundService)
+	if err != nil && errors.IsNotFound(err) {
+		// Define a new service
+		svc := r.serviceForSidecar(sidecar)
+		log.Info("Creating a new Service", "Service.Namespace", svc.Namespace, "Deployment.Name", svc.Name)
+		err = r.Create(ctx, svc)
+		if err != nil {
+			log.Error(err, "Failed to create new Service", "Service.Namespace", svc.Namespace, "Service.Name", svc.Name)
+			return ctrl.Result{}, err
+		}
+	} else if err != nil {
+		log.Error(err, "Failed to get Service")
+		return ctrl.Result{}, err
+	}
+
 	// Check if the deployment already exists, if not create a new one
 	found := &appsv1.Deployment{}
 	err = r.Get(ctx, types.NamespacedName{Name: sidecar.Name, Namespace: sidecar.Namespace}, found)
@@ -100,6 +121,27 @@ func (r *SidecarReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{RequeueAfter: time.Minute}, nil
 }
 
+func (r *SidecarReconciler) serviceForSidecar(s *sidev1alpha1.Sidecar) *corev1.Service {
+	ls := labelsForSidecar(s.Name)
+
+	svc := &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      getServiceName(s.Name),
+			Namespace: s.Namespace,
+		},
+		Spec: corev1.ServiceSpec{
+			Selector: ls,
+			Ports: []corev1.ServicePort{{
+				Name:       "http",
+				Port:       80,
+				TargetPort: intstr.FromInt(8080),
+			}},
+			Type: corev1.ServiceTypeLoadBalancer,
+		},
+	}
+	return svc
+}
+
 func (r *SidecarReconciler) deploymentForSidecar(s *sidev1alpha1.Sidecar) *appsv1.Deployment {
 	ls := labelsForSidecar(s.Name)
 	replicas := s.Spec.Size
@@ -123,7 +165,7 @@ func (r *SidecarReconciler) deploymentForSidecar(s *sidev1alpha1.Sidecar) *appsv
 						Name:  "sidecar",
 						Image: "alicek106/rr-test:echo-hostname",
 						Ports: []corev1.ContainerPort{{
-							ContainerPort: 11211,
+							ContainerPort: 80,
 						}},
 					}},
 				},
@@ -138,7 +180,11 @@ func (r *SidecarReconciler) deploymentForSidecar(s *sidev1alpha1.Sidecar) *appsv
 // labelsForMemcached returns the labels for selecting the resources
 // belonging to the given memcached CR name.
 func labelsForSidecar(name string) map[string]string {
-	return map[string]string{"app": "memcached", "memcached_cr": name}
+	return map[string]string{"app": "sidecar-webserver"}
+}
+
+func getServiceName(name string) string {
+	return "service-" + name
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -146,5 +192,6 @@ func (r *SidecarReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&sidev1alpha1.Sidecar{}).
 		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Service{}).
 		Complete(r)
 }

@@ -3,4 +3,4 @@ kind: Sidecar
 metadata:
   name: sidecar-sample
 spec:
-  # TODO(user): Add fields here
+  size: 3
