@@ -134,7 +134,7 @@ func (r *SidecarReconciler) serviceForSidecar(s *sidev1alpha1.Sidecar) *corev1.S
 			Ports: []corev1.ServicePort{{
 				Name:       "http",
 				Port:       80,
-				TargetPort: intstr.FromInt(8080),
+				TargetPort: intstr.FromInt(80),
 			}},
 			Type: corev1.ServiceTypeLoadBalancer,
 		},
