@@ -72,11 +72,11 @@ func (r *SidecarReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
-			log.Info("Memcached resource not found. Ignoring since object must be deleted")
+			log.Info("Sidecar resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
-		log.Error(err, "Failed to get Memcached")
+		log.Error(err, "Failed to get Sidecar")
 		return ctrl.Result{}, err
 	}
 
@@ -184,6 +184,10 @@ func (r *SidecarReconciler) deploymentForSidecar(s *sidev1alpha1.Sidecar) *appsv
 						Ports: []corev1.ContainerPort{{
 							ContainerPort: 80,
 						}},
+						VolumeMounts: []corev1.VolumeMount{{
+							Name:      "sidecar-volume-hostpath",
+							MountPath: "/data/private",
+						}},
 					}},
 					Volumes: []corev1.Volume{{
 						Name: "sidecar-volume-hostpath",
@@ -202,8 +206,8 @@ func (r *SidecarReconciler) deploymentForSidecar(s *sidev1alpha1.Sidecar) *appsv
 	return dep
 }
 
-// labelsForMemcached returns the labels for selecting the resources
-// belonging to the given memcached CR name.
+// labelsForSidecar returns the labels for selecting the resources
+// belonging to the given sidecar CR name.
 func labelsForSidecar(name string) map[string]string {
 	return map[string]string{"app": "sidecar-webserver"}
 }
