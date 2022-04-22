@@ -121,6 +121,23 @@ func (r *SidecarReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{RequeueAfter: time.Minute}, nil
 }
 
+// func (r *SidecarReconciler) pvForSidecar(s *sidev1alpha1.Sidecar) *corev1.PersistentVolume {
+// 	ls := labelsForSidecar(s.Name)
+
+// 	pv := &corev1.PersistentVolume{
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Name:      getServiceName(s.Name),
+// 			Namespace: s.Namespace,
+// 		},
+// 		Spec: corev1.PersistentVolumeSpec{
+// 			Capacity: corev1.ResourceList{
+// 				"storage": resource.Quantity{"2Gi"},
+// 			},
+// 			VolumeMode: corev1.PersistentVolumeMode{"Filesystem"}
+// 		},
+// 	}
+// }
+
 func (r *SidecarReconciler) serviceForSidecar(s *sidev1alpha1.Sidecar) *corev1.Service {
 	ls := labelsForSidecar(s.Name)
 
