@@ -185,6 +185,14 @@ func (r *SidecarReconciler) deploymentForSidecar(s *sidev1alpha1.Sidecar) *appsv
 							ContainerPort: 80,
 						}},
 					}},
+					Volumes: []corev1.Volume{{
+						Name: "sidecar-volume-hostpath",
+						VolumeSource: corev1.VolumeSource{
+							HostPath: &corev1.HostPathVolumeSource{
+								Path: "/tmp",
+							},
+						},
+					}},
 				},
 			},
 		},
