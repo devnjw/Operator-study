@@ -3,4 +3,15 @@ kind: Sidecar
 metadata:
   name: sidecar-sample
 spec:
-  # TODO(user): Add fields here
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: hello
+            image: busybox
+            args:
+            - /bin/sh
+            - -c
+            - date; echo Hello from the Kubernetes cluster
+          restartPolicy: OnFailure

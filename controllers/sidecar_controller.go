@@ -21,7 +21,9 @@ import (
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
+
+	kbatch "k8s.io/api/batch/v1"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -46,6 +48,9 @@ type SidecarReconciler struct {
 //+kubebuilder:rbac:groups=side.sidecar.com,resources=sidecars/finalizers,verbs=update
 //+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=pods,verbs=get;list;
+
+//+kubebuilder:rbac:groups=batch,resources=jobs,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=batch,resources=jobs/status,verbs=get
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -76,7 +81,7 @@ func (r *SidecarReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 
 	// Check if the deployment already exists, if not create a new one
-	found := &appsv1.Deployment{}
+	found := &kbatch.Job{}
 	err = r.Get(ctx, types.NamespacedName{Name: sidecar.Name, Namespace: sidecar.Namespace}, found)
 	if err != nil && errors.IsNotFound(err) {
 		// Define a new deployment
@@ -100,35 +105,13 @@ func (r *SidecarReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	return ctrl.Result{RequeueAfter: time.Minute}, nil
 }
 
-func (r *SidecarReconciler) deploymentForSidecar(s *sidev1alpha1.Sidecar) *appsv1.Deployment {
-	ls := labelsForSidecar(s.Name)
-	replicas := s.Spec.Size
-
-	dep := &appsv1.Deployment{
+func (r *SidecarReconciler) deploymentForSidecar(s *sidev1alpha1.Sidecar) *kbatch.Job {
+	dep := &kbatch.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      s.Name,
 			Namespace: s.Namespace,
 		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: ls,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: ls,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{{
-						Name:  "sidecar",
-						Image: "alicek106/rr-test:echo-hostname",
-						Ports: []corev1.ContainerPort{{
-							ContainerPort: 11211,
-						}},
-					}},
-				},
-			},
-		},
+		Spec: *s.Spec.JobTemplate.Spec.DeepCopy(),
 	}
 	// Set Sidecar instance as the owner and controller
 	ctrl.SetControllerReference(s, dep, r.Scheme)

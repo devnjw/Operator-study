@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	batchv1beta1 "k8s.io/api/batch/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -25,17 +27,33 @@ import (
 
 // SidecarSpec defines the desired state of Sidecar
 type SidecarSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Specifies the job that will be created when executing a CronJob.
+	JobTemplate batchv1beta1.JobTemplateSpec `json:"jobTemplate"`
 
-	Size int32 `json:"size"`
+	//+kubebuilder:validation:Minimum=0
+
+	// The number of successful finished jobs to retain.
+	// This is a pointer to distinguish between explicit zero and not specified.
+	// +optional
+	SuccessfulJobsHistoryLimit *int32 `json:"successfulJobsHistoryLimit,omitempty"`
+
+	//+kubebuilder:validation:Minimum=0
+
+	// The number of failed finished jobs to retain.
+	// This is a pointer to distinguish between explicit zero and not specified.
+	// +optional
+	FailedJobsHistoryLimit *int32 `json:"failedJobsHistoryLimit,omitempty"`
 }
 
 // SidecarStatus defines the observed state of Sidecar
 type SidecarStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-	Nodes []string `json:"nodes"`
+	// A list of pointers to currently running jobs.
+	// +optional
+	Active []corev1.ObjectReference `json:"active,omitempty"`
+
+	// Information when was the last time the job was successfully scheduled.
+	// +optional
+	LastScheduleTime *metav1.Time `json:"lastScheduleTime,omitempty"`
 }
 
 //+kubebuilder:object:root=true
